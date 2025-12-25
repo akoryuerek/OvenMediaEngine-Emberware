@@ -53,6 +53,7 @@ enum class StreamSourceType : int8_t
 	RtspPull,
 	Mpegts,
 	Srt,
+	SrtPull,  // Added for SRTC (SRT Caller) provider
 	Transcoder,
 	File,
 	Scheduled,
@@ -82,6 +83,7 @@ enum class ProviderType : int8_t
 	Mpegts,
 	WebRTC,
 	Srt,
+	SrtPull,  // Added for SRTC (SRT Caller) provider
 	File,
 	Scheduled,
 	Multiplex
@@ -424,6 +426,8 @@ static ov::String StringFromStreamSourceType(const StreamSourceType &type)
 			return "Transcoder";
 		case StreamSourceType::Srt:
 			return "SRT";
+		case StreamSourceType::SrtPull:
+			return "SRTPull";
 		case StreamSourceType::Mpegts:
 			return "MPEGTS";
 		case StreamSourceType::File:
@@ -470,6 +474,8 @@ static ov::String StringFromProviderType(const ProviderType &type)
 			return "WebRTC";
 		case ProviderType::Srt:
 			return "SRT";
+		case ProviderType::SrtPull:
+			return "SRTPull";
 		case ProviderType::File:
 			return "File";
 		case ProviderType::Scheduled:
@@ -540,6 +546,9 @@ static ProviderType ProviderTypeFromSourceType(const StreamSourceType &type)
 			break;
 		case StreamSourceType::Srt:
 			provider_type = ProviderType::Srt;
+			break;
+		case StreamSourceType::SrtPull:
+			provider_type = ProviderType::SrtPull;
 			break;
 		case StreamSourceType::Scheduled:
 			provider_type = ProviderType::Scheduled;
