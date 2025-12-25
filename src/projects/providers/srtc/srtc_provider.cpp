@@ -59,19 +59,12 @@ namespace pvd
 			return nullptr;
 		}
 
-		auto application = SrtcApplication::Create(GetSharedPtrAs<pvd::PullProvider>(), app_info);
-		if (application == nullptr)
-		{
-			logte("Could not create SRTC application for %s", app_info.GetName().CStr());
-			return nullptr;
-		}
-
-		return application;
+		return SrtcApplication::Create(GetSharedPtrAs<pvd::PullProvider>(), app_info);
 	}
 
 	bool SrtcProvider::OnDeleteProviderApplication(const std::shared_ptr<pvd::Application> &application)
 	{
-		return PullProvider::OnDeleteProviderApplication(application);
+		return true;
 	}
 
 }  // namespace pvd

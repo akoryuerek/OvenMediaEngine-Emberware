@@ -15,6 +15,7 @@ LOCAL_STATIC_LIBRARIES := \
 	srt_provider \
 	mpegts_provider \
 	rtspc_provider \
+	srtc_provider \
 	webrtc_provider \
 	scheduled_provider \
 	multiplex_provider \

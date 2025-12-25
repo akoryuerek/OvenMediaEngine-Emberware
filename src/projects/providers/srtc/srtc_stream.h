@@ -93,7 +93,7 @@ namespace pvd
 		std::vector<uint8_t> _recv_buffer;
 
 		// MPEG-TS Depacketizer
-		std::shared_ptr<MpegTsDepacketizer> _mpegts_depacketizer;
+		std::shared_ptr<mpegts::MpegTsDepacketizer> _mpegts_depacketizer;
 
 		// Statistics
 		int64_t _origin_request_time_msec = 0;
@@ -105,5 +105,8 @@ namespace pvd
 		ov::StopWatch _reconnect_timer;
 		int _reconnect_attempts = 0;
 		static constexpr int MAX_RECONNECT_ATTEMPTS = 10;
+
+		// Track publishing state
+		bool _tracks_published = false;
 	};
 }  // namespace pvd

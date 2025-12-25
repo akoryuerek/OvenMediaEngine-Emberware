@@ -109,7 +109,7 @@ namespace pvd
 		_origin_request_time_msec = stop_watch.Elapsed();
 
 		// Initialize MPEG-TS depacketizer
-		_mpegts_depacketizer = std::make_shared<MpegTsDepacketizer>();
+		_mpegts_depacketizer = std::make_shared<mpegts::MpegTsDepacketizer>();
 		if (_mpegts_depacketizer == nullptr)
 		{
 			logte("Failed to create MPEG-TS depacketizer");
@@ -388,31 +388,96 @@ namespace pvd
 		// Feed data to MPEG-TS depacketizer
 		_mpegts_depacketizer->AddPacket(data);
 
-		// Process depacketized frames
-		while (_mpegts_depacketizer->IsAvailableMediaPacket())
+		// First, check if track info is available and we haven't published yet
+		if (_tracks_published == false && _mpegts_depacketizer->IsTrackInfoAvailable())
 		{
-			auto media_packet = _mpegts_depacketizer->PopMediaPacket();
-			if (media_packet != nullptr)
+			std::map<uint16_t, std::shared_ptr<MediaTrack>> track_list;
+			if (_mpegts_depacketizer->GetTrackList(&track_list))
 			{
-				// Check if this is a new track
-				auto track = GetTrack(media_packet->GetTrackId());
-				if (track == nullptr)
+				for (const auto &pair : track_list)
 				{
-					// Create new track from depacketizer info
-					auto depacketizer_track = _mpegts_depacketizer->GetTrack(media_packet->GetTrackId());
-					if (depacketizer_track != nullptr)
-					{
-						auto new_track = std::make_shared<MediaTrack>(*depacketizer_track);
-						AddTrack(new_track);
-						logtd("Added new track: %d (%s)",
-							  new_track->GetId(),
-							  new_track->GetMediaType() == cmn::MediaType::Video ? "Video" : "Audio");
-					}
+					auto track = pair.second;
+					AddTrack(track);
+					logtd("Added track: PID=%d Type=%s",
+						  track->GetId(),
+						  track->GetMediaType() == cmn::MediaType::Video ? "Video" : "Audio");
+				}
+				_tracks_published = true;
+			}
+		}
+
+		// Process Elementary Streams
+		while (_mpegts_depacketizer->IsESAvailable())
+		{
+			auto es = _mpegts_depacketizer->PopES();
+			if (es == nullptr)
+			{
+				continue;
+			}
+
+			auto track = GetTrack(es->PID());
+			if (track == nullptr)
+			{
+				logtd("No track for PID %d, skipping ES", es->PID());
+				continue;
+			}
+
+			int64_t pts = es->Pts();
+			int64_t dts = es->Dts();
+
+			// Adjust timestamps
+			AdjustTimestampByBase(track->GetId(), pts, dts, 0x1FFFFFFFFLL);
+
+			if (es->IsVideoStream())
+			{
+				auto bitstream = cmn::BitstreamFormat::Unknown;
+				switch (track->GetCodecId())
+				{
+					case cmn::MediaCodecId::H264:
+						bitstream = cmn::BitstreamFormat::H264_ANNEXB;
+						break;
+					case cmn::MediaCodecId::H265:
+						bitstream = cmn::BitstreamFormat::H265_ANNEXB;
+						break;
+					default:
+						break;
 				}
 
-				// Send frame to application
+				auto payload = std::make_shared<ov::Data>(es->Payload(), es->PayloadLength());
+				auto media_packet = std::make_shared<MediaPacket>(
+					GetMsid(),
+					cmn::MediaType::Video,
+					es->PID(),
+					payload,
+					pts,
+					dts,
+					-1LL,
+					MediaPacketFlag::Unknown,
+					bitstream,
+					cmn::PacketType::NALU);
+
 				SendFrame(media_packet);
 			}
+			else if (es->IsAudioStream())
+			{
+				auto payload = std::make_shared<ov::Data>(es->Payload(), es->PayloadLength());
+				auto media_packet = std::make_shared<MediaPacket>(
+					GetMsid(),
+					cmn::MediaType::Audio,
+					es->PID(),
+					payload,
+					pts,
+					dts,
+					-1LL,
+					MediaPacketFlag::Unknown,
+					cmn::BitstreamFormat::AAC_ADTS,
+					cmn::PacketType::RAW);
+
+				SendFrame(media_packet);
+			}
+
+			logtd("Frame - PID(%d) PTS(%lld) DTS(%lld) Size(%d)",
+				  es->PID(), pts, dts, es->PayloadLength());
 		}
 	}
 
