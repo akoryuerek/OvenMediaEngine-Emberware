@@ -293,7 +293,7 @@ namespace pvd
 		}
 
 		// Connect (blocking)
-		logtd("Connecting to %s:%d...", host.CStr(), port);
+		logti("Connecting to SRT source %s:%d...", host.CStr(), port);
 
 		int result = srt_connect(_srt_socket, (struct sockaddr *)&sa, sizeof(sa));
 		if (result == SRT_ERROR)
@@ -305,8 +305,11 @@ namespace pvd
 			return false;
 		}
 
+		// Set to non-blocking mode after connection
+		srt_setsockflag(_srt_socket, SRTO_RCVSYN, &no, sizeof(no));
+
 		SetState(State::CONNECTED);
-		logtd("SRT connection established to %s:%d", host.CStr(), port);
+		logti("SRT connection established to %s:%d", host.CStr(), port);
 
 		return true;
 	}
@@ -394,15 +397,21 @@ namespace pvd
 			std::map<uint16_t, std::shared_ptr<MediaTrack>> track_list;
 			if (_mpegts_depacketizer->GetTrackList(&track_list))
 			{
+				logti("SRTC: Discovered %zu tracks in MPEG-TS stream", track_list.size());
 				for (const auto &pair : track_list)
 				{
 					auto track = pair.second;
-					AddTrack(track);
-					logtd("Added track: PID=%d Type=%s",
+					logtd("SRTC Track: PID=%d Type=%d Codec=%d",
 						  track->GetId(),
-						  track->GetMediaType() == cmn::MediaType::Video ? "Video" : "Audio");
+						  static_cast<int>(track->GetMediaType()),
+						  static_cast<int>(track->GetCodecId()));
+					AddTrack(track);
 				}
 				_tracks_published = true;
+
+				// Notify MediaRouter that the stream has been updated with new tracks
+				// This triggers TranscoderStream::UpdateInternal() which creates output streams
+				UpdateStream();
 			}
 		}
 
@@ -418,7 +427,7 @@ namespace pvd
 			auto track = GetTrack(es->PID());
 			if (track == nullptr)
 			{
-				logtd("No track for PID %d, skipping ES", es->PID());
+				logtd("SRTC: No track for PID %d, skipping", es->PID());
 				continue;
 			}
 

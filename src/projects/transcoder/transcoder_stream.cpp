@@ -244,9 +244,33 @@ const cfg::vhost::app::oprf::OutputProfiles *TranscoderStream::RequestWebhook()
 	return nullptr;
 }
 
+// Helper function to check if stream has valid video or audio tracks (not just data tracks)
+static bool HasValidMediaTracks(const std::shared_ptr<info::Stream> &stream)
+{
+	for (const auto &[track_id, track] : stream->GetTracks())
+	{
+		auto media_type = track->GetMediaType();
+		if (media_type == cmn::MediaType::Video || media_type == cmn::MediaType::Audio)
+		{
+			// Has at least one video or audio track
+			return true;
+		}
+	}
+	return false;
+}
+
 bool TranscoderStream::StartInternal()
 {
-	// If the application is created by Dynamic, make it bypass in Default Stream.
+	// First check if we have valid media tracks (Video or Audio)
+	// For providers like SRTC where tracks are discovered asynchronously from MPEG-TS data,
+	// we defer output stream creation until tracks are available via UpdateInternal()
+	if (!HasValidMediaTracks(_input_stream))
+	{
+		logti("%s Input stream has no valid media tracks yet (only Data track), deferring output stream creation to UpdateInternal()", _log_prefix.CStr());
+		return true;  // Accept the stream, output streams will be created when tracks become available
+	}
+
+	// Create output streams now that we have valid media tracks
 	if (_application_info.IsDynamicApp() == true)
 	{
 		if (CreateOutputStreamDynamic() == 0)
@@ -272,6 +296,46 @@ bool TranscoderStream::StartInternal()
 
 bool TranscoderStream::PrepareInternal()
 {
+	// If output streams weren't created in StartInternal() (because input had no tracks),
+	// we need to wait for valid tracks before creating output streams
+	if (_output_streams.empty())
+	{
+		// Check if we have valid media tracks now
+		if (!HasValidMediaTracks(_input_stream))
+		{
+			// Still no valid media tracks - this can happen for SRTC/MPEG-TS streams
+			// where tracks are discovered asynchronously from the data stream.
+			// We'll need to wait and retry. For now, log and return false to retry later.
+			logti("%s Still no valid media tracks, output stream creation pending", _log_prefix.CStr());
+
+			// Return true to keep the stream alive - tracks will be added via OnStreamUpdated
+			// This allows the stream to continue receiving data until tracks are discovered
+			return true;
+		}
+
+		logti("%s Creating output streams (deferred from StartInternal)", _log_prefix.CStr());
+
+		if (_application_info.IsDynamicApp() == true)
+		{
+			if (CreateOutputStreamDynamic() == 0)
+			{
+				logte("%s No output stream generated in deferred creation", _log_prefix.CStr());
+				return false;
+			}
+		}
+		else
+		{
+			if (CreateOutputStreams() == 0)
+			{
+				logte("%s No output stream generated in deferred creation", _log_prefix.CStr());
+				return false;
+			}
+		}
+
+		// Notify to create the output streams on the media router
+		NotifyCreateStreams();
+	}
+
 	if (BuildComposite() == 0)
 	{
 		logte("%s Failed to create components", _log_prefix.CStr());
@@ -293,6 +357,65 @@ bool TranscoderStream::PrepareInternal()
 
 bool TranscoderStream::UpdateInternal(const std::shared_ptr<info::Stream> &stream)
 {
+	// Check if output streams were deferred (e.g., SRTC where tracks are discovered asynchronously)
+	if (_output_streams.empty())
+	{
+		// Check if we now have valid media tracks
+		if (HasValidMediaTracks(stream))
+		{
+			logti("%s Tracks now available, creating deferred output streams", _log_prefix.CStr());
+
+			// Update _input_stream to use the new stream info with tracks
+			// CreateOutputStreamDynamic/CreateOutputStreams use _input_stream->GetTracks()
+			_input_stream = stream;
+
+			if (_application_info.IsDynamicApp() == true)
+			{
+				if (CreateOutputStreamDynamic() == 0)
+				{
+					logte("%s No output stream generated in deferred creation (UpdateInternal)", _log_prefix.CStr());
+					return false;
+				}
+			}
+			else
+			{
+				if (CreateOutputStreams() == 0)
+				{
+					logte("%s No output stream generated in deferred creation (UpdateInternal)", _log_prefix.CStr());
+					return false;
+				}
+			}
+
+			// Notify to create the output streams on the media router
+			NotifyCreateStreams();
+
+			// Build composite and create decoders
+			if (BuildComposite() == 0)
+			{
+				logte("%s Failed to create components (UpdateInternal)", _log_prefix.CStr());
+				return false;
+			}
+
+			if (CreateDecoders() == false)
+			{
+				logte("%s Failed to create decoders (UpdateInternal)", _log_prefix.CStr());
+				return false;
+			}
+
+			StoreTracks(stream);
+
+			_is_updating = false;
+			logti("%s Deferred stream setup complete", _log_prefix.CStr());
+			return true;
+		}
+		else
+		{
+			// Still no valid tracks, nothing to update
+			logtd("%s Still waiting for valid media tracks", _log_prefix.CStr());
+			return true;
+		}
+	}
+
 	// Check if smooth stream transition is possible
 	// [Rule]
 	// - The number of tracks per media type should not exceed one.

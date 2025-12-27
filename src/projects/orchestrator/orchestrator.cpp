@@ -952,6 +952,10 @@ namespace ocst
 		{
 			type = ProviderType::File;
 		}
+		else if (lower_scheme == "srt" || lower_scheme == "srtc")
+		{
+			type = ProviderType::SrtPull;
+		}
 		else
 		{
 			logte("Could not find a provider for scheme [%s]", scheme.CStr());

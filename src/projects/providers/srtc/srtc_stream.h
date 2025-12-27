@@ -45,7 +45,8 @@ namespace pvd
 
 		ProcessMediaEventTrigger GetProcessMediaEventTriggerMode() override
 		{
-			return ProcessMediaEventTrigger::TRIGGER_EPOLL;
+			// SRT sockets don't work with regular epoll, use interval-based polling
+			return ProcessMediaEventTrigger::TRIGGER_INTERVAL;
 		}
 
 		// PullStream Implementation
