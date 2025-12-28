@@ -148,7 +148,10 @@ namespace bmff
 		}
 
 		// Next track ID
-		stream.WriteBE32(0xFFFFFFFF);
+		// Samsung Tizen TV Compatibility Fix:
+		// Tizen MSE expects a proper next_track_id (typically num_tracks + 1)
+		// 0xFFFFFFFF is technically valid per spec but causes issues on some players
+		stream.WriteBE32(0x00000003); // 2 tracks (video + audio) + 1
 
 		return WriteFullBox(container_stream, "mvhd", *stream.GetData(), 0, 0);
 	}
