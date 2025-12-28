@@ -8,17 +8,18 @@ FROM    base AS build
 
 WORKDIR /tmp
 
-ARG     OME_VERSION=master
+ARG     OME_VERSION=tizen-fmp4-fix
 ARG 	STRIP=TRUE
+ARG     OME_REPO=https://github.com/akoryuerek/OvenMediaEngine-Emberware.git
 
 ENV     PREFIX=/opt/ovenmediaengine
 ENV     TEMP_DIR=/tmp/ome
 
-## Download OvenMediaEngine
+## Download OvenMediaEngine (Emberware Fork with Tizen patches)
 RUN \
         mkdir -p ${TEMP_DIR} && \
         cd ${TEMP_DIR} && \
-        git clone --branch ${OME_VERSION} --single-branch --depth 1 https://github.com/AirenSoft/OvenMediaEngine .
+        git clone --branch ${OME_VERSION} --single-branch --depth 1 ${OME_REPO} .
 
 ## Install dependencies
 RUN \
