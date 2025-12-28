@@ -600,14 +600,13 @@ namespace bmff
 	{
 		ov::ByteStream stream(128);
 
-		stream.WriteText("iso6"); // major brand
+		// Samsung Tizen TV Compatibility Fix:
+		// Tizen MSE requires mp42 brand for stable fMP4 playback
+		// See: https://github.com/AirenSoft/OvenMediaEngine/issues/XXX
+		stream.WriteText("mp42"); // major brand (was: iso6)
 		stream.WriteBE32(0); // minor version
-		stream.WriteText("iso6mp42avc1dashhlsfaid3"); // compatible brands
+		stream.WriteText("isommp42iso5dashhlsfavc1"); // compatible brands (Apple-style order)
 
-		// stream.WriteText("mp42"); // major brand
-		// stream.WriteBE32(0); // minor version
-		// stream.WriteText("isommp42iso5dash"); // compatible brands
-		
 		return WriteBox(data_stream, "ftyp", *stream.GetData());
 	}
 } // namespace bmff
