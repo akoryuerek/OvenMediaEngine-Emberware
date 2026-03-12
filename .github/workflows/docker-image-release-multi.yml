@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Notify Start (amd64)
+        continue-on-error: true
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
@@ -54,6 +55,7 @@ jobs:
 
       - name: Notify Done (amd64)
         if: always()
+        continue-on-error: true
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
@@ -70,6 +72,7 @@ jobs:
     runs-on: ubuntu-22.04-arm
     steps:
       - name: Notify Start (arm64)
+        continue-on-error: true
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
@@ -104,6 +107,7 @@ jobs:
 
       - name: Notify Done (arm64)
         if: always()
+        continue-on-error: true
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
@@ -121,6 +125,7 @@ jobs:
     needs: [build_amd64, build_arm64]
     steps:
       - name: Notify Start (Merge)
+        continue-on-error: true
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
@@ -155,6 +160,7 @@ jobs:
             
       - name: Notify Done (manifest)
         if: always()
+        continue-on-error: true
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
