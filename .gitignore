@@ -44,3 +44,8 @@ misc/FFmpeg*
 
 # AMS
 src/core/local_config.mk
+
+# === KI-Anweisungen / Claude Code (lokal, nicht versionieren) ===
+.claude/
+CLAUDE.md
+AGENTS.md
